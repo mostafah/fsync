@@ -199,7 +199,9 @@ func equal(a, b string) bool {
 
 	// both have the same size, check the contents
 	f1, err := os.Open(a); check(err)
+	defer f1.Close()
 	f2, err := os.Open(b); check(err)
+	defer f2.Close()
 	buf1 := make([]byte, 1000)
 	buf2 := make([]byte, 1000)
 	for {
