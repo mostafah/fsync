@@ -2,13 +2,12 @@
 //
 //         err := fsync.Sync("~/dst", ".")
 //
-// After the above code, if err is nil, you can be sure that everything that is
-// at the current directory will also be at ~/dst. Consequent calls will only
-// copy changed or new files. You can use SyncDel to also delete extra files in
-// the destination:
+// After the above code, if err is nil, every file and directory in the current 
+// directory is copied to ~/dst and has the same permissions. Consequent calls
+// will only copy changed or new files. You can use SyncDel to also delete
+// extra files in the destination:
 //
 //         err := fsync.SyncDel("~/dst", ".")
-//
 package fsync
 
 import (
@@ -16,9 +15,9 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"os"
 	"path"
 	"runtime"
-	"os"
 )
 
 var (
@@ -26,7 +25,7 @@ var (
 		"fsync: trying to overwrite a non-empty directory with a file")
 )
 
-// Sync updates dst to contain everything that is available in src.
+// Sync copies files and directories inside src into dst.
 func Sync(dst, src string) error {
 	// return error instead of replacing a non-empty directory with a file
 	if b, err := checkDir(dst, src); err != nil {
@@ -108,7 +107,8 @@ func sync(del bool, dst, src string) {
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
 	}
-	s, err := os.Stat(src); check(err)
+	s, err := os.Stat(src)
+	check(err)
 
 	if !s.IsDir() {
 		// src is a file
@@ -118,11 +118,14 @@ func sync(del bool, dst, src string) {
 		}
 		if !equal(dst, src) {
 			// perform copy
-			df, err := os.Create(dst); check(err)
+			df, err := os.Create(dst)
+			check(err)
 			defer df.Close()
-			sf, err := os.Open(src); check(err)
+			sf, err := os.Open(src)
+			check(err)
 			defer sf.Close()
-			_, err = io.Copy(df, sf); check(err)
+			_, err = io.Copy(df, sf)
+			check(err)
 		}
 		return
 	}
@@ -139,7 +142,8 @@ func sync(del bool, dst, src string) {
 	}
 
 	// go through sf files and sync them
-	files, err := ioutil.ReadDir(src); check(err)
+	files, err := ioutil.ReadDir(src)
+	check(err)
 	// make a map of filenames for quick lookup; used in deletion
 	// deletion below
 	m := make(map[string]bool, len(files))
@@ -152,7 +156,8 @@ func sync(del bool, dst, src string) {
 
 	// delete files from dst that does not exist in src
 	if del {
-		files, err = ioutil.ReadDir(dst); check(err)
+		files, err = ioutil.ReadDir(dst)
+		check(err)
 		for _, file := range files {
 			if !m[file.Name()] {
 				check(os.RemoveAll(path.Join(dst, file.Name())))
@@ -198,9 +203,11 @@ func equal(a, b string) bool {
 	}
 
 	// both have the same size, check the contents
-	f1, err := os.Open(a); check(err)
+	f1, err := os.Open(a)
+	check(err)
 	defer f1.Close()
-	f2, err := os.Open(b); check(err)
+	f2, err := os.Open(b)
+	check(err)
 	defer f2.Close()
 	buf1 := make([]byte, 1000)
 	buf2 := make([]byte, 1000)

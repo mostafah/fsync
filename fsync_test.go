@@ -62,7 +62,7 @@ func TestSync(t *testing.T) {
 	// sync
 	check(SyncDel("dst", "src"))
 
-	// check results; c should still exist
+	// check results; c should no longer exist
 	testDirContents("dst", 1, t)
 	testExistence("dst/c", false, t)
 
