@@ -108,6 +108,9 @@ func sync(del bool, dst, src string) {
 		panic(err)
 	}
 	s, err := os.Stat(src)
+	if err != nil && os.IsNotExist(err) {
+		return // src was deleted before we could copy it
+	}
 	check(err)
 
 	if !s.IsDir() {
