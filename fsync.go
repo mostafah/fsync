@@ -2,7 +2,7 @@
 //
 //         err := fsync.Sync("~/dst", ".")
 //
-// After the above code, if err is nil, every file and directory in the current 
+// After the above code, if err is nil, every file and directory in the current
 // directory is copied to ~/dst and has the same permissions. Consequent calls
 // will only copy changed or new files. You can use SyncDel to also delete
 // extra files in the destination:
@@ -27,6 +27,10 @@ var (
 
 // Sync copies files and directories inside src into dst.
 func Sync(dst, src string) error {
+	// make sure src exists
+	if _, err := os.Stat(src); err != nil {
+		return err
+	}
 	// return error instead of replacing a non-empty directory with a file
 	if b, err := checkDir(dst, src); err != nil {
 		return err
