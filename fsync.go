@@ -129,9 +129,15 @@ func sync(del bool, dst, src string) {
 			check(err)
 			defer df.Close()
 			sf, err := os.Open(src)
+			if os.IsNotExist(err) {
+				return
+			}
 			check(err)
 			defer sf.Close()
 			_, err = io.Copy(df, sf)
+			if os.IsNotExist(err) {
+				return
+			}
 			check(err)
 		}
 		return
@@ -150,6 +156,9 @@ func sync(del bool, dst, src string) {
 
 	// go through sf files and sync them
 	files, err := ioutil.ReadDir(src)
+	if os.IsNotExist(err) {
+		return
+	}
 	check(err)
 	// make a map of filenames for quick lookup; used in deletion
 	// deletion below
