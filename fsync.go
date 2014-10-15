@@ -6,6 +6,20 @@
 // directory is copied to ~/dst and has the same permissions. Consequent calls
 // will only copy changed or new files.
 //
+// SyncTo is a helper function which helps you sync a groups of files or
+// directories into a signle destination. For instance, calling
+//
+//     SyncTo("public", "build/app.js", "build/app.css", "images", "fonts")
+//
+// is equivalient to calling
+//
+//     Sync("public/app.js", "build/app.js")
+//     Sync("public/app.css", "build/app.css")
+//     Sync("public/images", "images")
+//     Sync("public/fonts", "fonts")
+//
+// Actually, this is how SyncTo is implemented: consequent calls to Sync.
+//
 // By default, sync code ignores extra files in the destination that don’t have
 // identicals in the source. Setting Delete field of a Syncer to true changes
 // this behavior and deletes these extra files.
