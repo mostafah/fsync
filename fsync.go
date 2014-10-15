@@ -4,10 +4,11 @@
 //
 // After the above code, if err is nil, every file and directory in the current
 // directory is copied to ~/dst and has the same permissions. Consequent calls
-// will only copy changed or new files. You can use SyncDel to also delete
-// extra files in the destination:
+// will only copy changed or new files.
 //
-//         err := fsync.SyncDel("~/dst", ".")
+// By default, sync code ignores extra files in the destination that don’t have
+// identicals in the source. Setting Delete field of a Syncer to true changes
+// this behavior and deletes these extra files.
 package fsync
 
 import (
@@ -27,59 +28,49 @@ var (
 
 // Sync copies files and directories inside src into dst.
 func Sync(dst, src string) error {
+	return NewSyncer().Sync(dst, src)
+}
+
+// SyncTo syncs srcs files and directories into to directory.
+func SyncTo(to string, srcs ...string) error {
+	return NewSyncer().SyncTo(to, srcs...)
+}
+
+// Type Syncer provides functions for syncing files.
+type Syncer struct {
+	// Set this to true to delete files in the destination that don't exist
+	// in the source.
+	Delete bool
+	// TODO add options for keeping dates and not checking for content
+	// equality
+}
+
+// NewSyncer creates a new instance of Syncer with default options.
+func NewSyncer() *Syncer {
+	return &Syncer{}
+}
+
+// Sync copies files and directories inside src into dst.
+func (s *Syncer) Sync(dst, src string) error {
 	// make sure src exists
 	if _, err := os.Stat(src); err != nil {
 		return err
 	}
 	// return error instead of replacing a non-empty directory with a file
-	if b, err := checkDir(dst, src); err != nil {
+	if b, err := s.checkDir(dst, src); err != nil {
 		return err
 	} else if b {
 		return ErrFileOverDir
 	}
 
-	return syncRecover(false, dst, src)
+	return s.syncRecover(dst, src)
 }
 
-// SyncDel makes sure dst is a copy of src. It's only difference with Sync is in
-// deleting files in dst that are not found in src.
-func SyncDel(dst, src string) error {
-	// return error instead of replacing a non-empty directory with a file
-	if b, err := checkDir(dst, src); err != nil {
-		return err
-	} else if b {
-		return ErrFileOverDir
-	}
-
-	return syncRecover(true, dst, src)
-}
-
-// SyncTo syncs srcs files or directories **into** to directory. Calling
-//
-//         SyncTo("a", "b", "c/d")
-//
-// is equivalent to calling
-//
-//         Sync("a/b", "b")
-//         Sync("a/d", "c/d")
-//
-// Actually, this is also implementation of SyncTo.
-func SyncTo(to string, srcs ...string) error {
+// SyncTo syncs srcs files or directories into to directory.
+func (s *Syncer) SyncTo(to string, srcs ...string) error {
 	for _, src := range srcs {
 		dst := path.Join(to, path.Base(src))
-		if err := Sync(dst, src); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// SyncDelTo syncs srcs files or directories **into** to directory. It differs
-// with SyncDelTo in using SyncDel instead of Sync.
-func SyncDelTo(to string, srcs ...string) error {
-	for _, src := range srcs {
-		dst := path.Join(to, path.Base(src))
-		if err := SyncDel(dst, src); err != nil {
+		if err := s.Sync(dst, src); err != nil {
 			return err
 		}
 	}
@@ -87,7 +78,7 @@ func SyncDelTo(to string, srcs ...string) error {
 }
 
 // syncRecover handles errors and calls sync
-func syncRecover(del bool, dst, src string) (err error) {
+func (s *Syncer) syncRecover(dst, src string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if _, ok := r.(runtime.Error); ok {
@@ -97,33 +88,33 @@ func syncRecover(del bool, dst, src string) (err error) {
 		}
 	}()
 
-	sync(del, dst, src)
+	s.sync(dst, src)
 	return nil
 }
 
 // sync updates dst to match with src, handling both files and directories.
-func sync(del bool, dst, src string) {
+func (s *Syncer) sync(dst, src string) {
 	// sync permissions after handling content
-	defer syncperms(dst, src)
+	defer s.syncperms(dst, src)
 
 	// read files info
-	d, err := os.Stat(dst)
+	dstat, err := os.Stat(dst)
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
 	}
-	s, err := os.Stat(src)
+	sstat, err := os.Stat(src)
 	if err != nil && os.IsNotExist(err) {
 		return // src was deleted before we could copy it
 	}
 	check(err)
 
-	if !s.IsDir() {
+	if !sstat.IsDir() {
 		// src is a file
 		// delete dst if its a directory
-		if d != nil && d.IsDir() {
+		if dstat != nil && dstat.IsDir() {
 			check(os.RemoveAll(dst))
 		}
-		if !equal(dst, src) {
+		if !s.equal(dst, src) {
 			// perform copy
 			df, err := os.Create(dst)
 			check(err)
@@ -145,10 +136,10 @@ func sync(del bool, dst, src string) {
 
 	// src is a directory
 	// make dst if necessary
-	if d == nil {
+	if dstat == nil {
 		// dst does not exist; create directory
 		check(os.MkdirAll(dst, 0755)) // permissions will be synced later
-	} else if !d.IsDir() {
+	} else if !dstat.IsDir() {
 		// dst is a file; remove and create directory
 		check(os.Remove(dst))
 		check(os.MkdirAll(dst, 0755)) // permissions will be synced later
@@ -166,12 +157,12 @@ func sync(del bool, dst, src string) {
 	for _, file := range files {
 		dst2 := path.Join(dst, file.Name())
 		src2 := path.Join(src, file.Name())
-		sync(del, dst2, src2)
+		s.sync(dst2, src2)
 		m[file.Name()] = true
 	}
 
 	// delete files from dst that does not exist in src
-	if del {
+	if s.Delete {
 		files, err = ioutil.ReadDir(dst)
 		check(err)
 		for _, file := range files {
@@ -183,10 +174,10 @@ func sync(del bool, dst, src string) {
 }
 
 // syncperms makes sure dst has the same pemissions as src
-func syncperms(dst, src string) {
+func (s *Syncer) syncperms(dst, src string) {
 	// get file infos; return if not exist and panic if error
-	d, err1 := os.Stat(dst)
-	s, err2 := os.Stat(src)
+	dstat, err1 := os.Stat(dst)
+	sstat, err2 := os.Stat(src)
 	if os.IsNotExist(err1) || os.IsNotExist(err2) {
 		return
 	}
@@ -194,16 +185,16 @@ func syncperms(dst, src string) {
 	check(err2)
 
 	// return if they are already the same
-	if d.Mode().Perm() == s.Mode().Perm() {
+	if dstat.Mode().Perm() == sstat.Mode().Perm() {
 		return
 	}
 
 	// update dst's permission bits
-	check(os.Chmod(dst, s.Mode().Perm()))
+	check(os.Chmod(dst, sstat.Mode().Perm()))
 }
 
 // equal returns true if both files are equal
-func equal(a, b string) bool {
+func (s *Syncer) equal(a, b string) bool {
 	// get file infos
 	info1, err1 := os.Stat(a)
 	info2, err2 := os.Stat(b)
@@ -253,21 +244,21 @@ func equal(a, b string) bool {
 }
 
 // checkDir returns true if dst is a non-empty directory and src is a file
-func checkDir(dst, src string) (b bool, err error) {
+func (s *Syncer) checkDir(dst, src string) (b bool, err error) {
 	// read file info
-	d, err := os.Stat(dst)
+	dstat, err := os.Stat(dst)
 	if os.IsNotExist(err) {
 		return false, nil
 	} else if err != nil {
 		return false, err
 	}
-	s, err := os.Stat(src)
+	sstat, err := os.Stat(src)
 	if err != nil {
 		return false, err
 	}
 
 	// return false is dst is not a directory or src is a directory
-	if !d.IsDir() || s.IsDir() {
+	if !dstat.IsDir() || sstat.IsDir() {
 		return false, nil
 	}
 

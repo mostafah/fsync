@@ -19,8 +19,11 @@ func TestSync(t *testing.T) {
 	check(ioutil.WriteFile("src/a/b", []byte("file b"), 0644))
 	check(ioutil.WriteFile("src/c", []byte("file c"), 0644))
 
+	// create Syncer
+	s := NewSyncer()
+
 	// sync
-	check(SyncTo("dst", "src/a", "src/c"))
+	check(s.SyncTo("dst", "src/a", "src/c"))
 
 	// check results
 	testDirContents("dst", 2, t)
@@ -42,7 +45,7 @@ func TestSync(t *testing.T) {
 	check(os.Chmod("src/a", 0775))
 
 	// sync
-	check(Sync("dst", "src"))
+	check(s.Sync("dst", "src"))
 
 	// check results
 	testFile("dst/a/b", []byte("file b changed"), t)
@@ -53,20 +56,22 @@ func TestSync(t *testing.T) {
 	check(os.Remove("src/c"))
 
 	// sync
-	check(Sync("dst", "src"))
+	check(s.Sync("dst", "src"))
 
 	// check results; c should still exist
 	testDirContents("dst", 2, t)
 	testExistence("dst/c", true, t)
 
 	// sync
-	check(SyncDel("dst", "src"))
+	s.Delete = true
+	check(s.Sync("dst", "src"))
 
 	// check results; c should no longer exist
 	testDirContents("dst", 1, t)
 	testExistence("dst/c", false, t)
 
-	if err = Sync("dst", "src/a/b"); err == nil {
+	s.Delete = false
+	if err = s.Sync("dst", "src/a/b"); err == nil {
 		t.Errorf("expecting ErrFileOverDir, got nothing.\n")
 	} else if err != nil && err != ErrFileOverDir {
 		panic(err)
