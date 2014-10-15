@@ -18,6 +18,12 @@ func TestSync(t *testing.T) {
 	check(os.MkdirAll("src/a", 0755))
 	check(ioutil.WriteFile("src/a/b", []byte("file b"), 0644))
 	check(ioutil.WriteFile("src/c", []byte("file c"), 0644))
+	// set times in the past to make sure times are synced, not accidentally
+	// the same
+	tt := time.Now().Add(-1 * time.Hour)
+	check(os.Chtimes("src/a", tt, tt))
+	check(os.Chtimes("src/a/b", tt, tt))
+	check(os.Chtimes("src/c", tt, tt))
 
 	// create Syncer
 	s := NewSyncer()
@@ -34,11 +40,10 @@ func TestSync(t *testing.T) {
 	testPerms("dst/a", 0755, t)
 	testPerms("dst/a/b", 0644, t)
 	testPerms("dst/c", 0644, t)
-
-	// save modification time to check later
-	info, err := os.Stat("src/c")
-	check(err)
-	modC := info.ModTime()
+	testModTime("dst", getModTime("src"), t)
+	testModTime("dst/a", getModTime("src/a"), t)
+	testModTime("dst/a/b", getModTime("src/a/b"), t)
+	testModTime("dst/c", getModTime("src/c"), t)
 
 	// modify src
 	check(ioutil.WriteFile("src/a/b", []byte("file b changed"), 0644))
@@ -50,7 +55,9 @@ func TestSync(t *testing.T) {
 	// check results
 	testFile("dst/a/b", []byte("file b changed"), t)
 	testPerms("dst/a", 0775, t)
-	testModTime("dst/c", modC, t) // to see if c changed in this sync
+	testModTime("dst/a", getModTime("src/a"), t)
+	testModTime("dst/a/b", getModTime("src/a/b"), t)
+	testModTime("dst/c", getModTime("src/c"), t)
 
 	// remove c
 	check(os.Remove("src/c"))
@@ -128,4 +135,10 @@ func testModTime(name string, m time.Time, t *testing.T) {
 		t.Errorf("modification time for \"%s\" is %v, should be %v.\n",
 			name, info.ModTime(), m)
 	}
+}
+
+func getModTime(name string) time.Time {
+	info, err := os.Stat(name)
+	check(err)
+	return info.ModTime()
 }

@@ -55,8 +55,10 @@ type Syncer struct {
 	// Set this to true to delete files in the destination that don't exist
 	// in the source.
 	Delete bool
-	// TODO add options for keeping dates and not checking for content
-	// equality
+	// By default, modification times are synced. This can be turned off by
+	// setting this to true.
+	NoTimes bool
+	// TODO add options for not checking content for equality
 }
 
 // NewSyncer creates a new instance of Syncer with default options.
@@ -108,8 +110,8 @@ func (s *Syncer) syncRecover(dst, src string) (err error) {
 
 // sync updates dst to match with src, handling both files and directories.
 func (s *Syncer) sync(dst, src string) {
-	// sync permissions after handling content
-	defer s.syncperms(dst, src)
+	// sync permissions and modification times after handling content
+	defer s.syncstats(dst, src)
 
 	// read files info
 	dstat, err := os.Stat(dst)
@@ -187,8 +189,8 @@ func (s *Syncer) sync(dst, src string) {
 	}
 }
 
-// syncperms makes sure dst has the same pemissions as src
-func (s *Syncer) syncperms(dst, src string) {
+// syncstats makes sure dst has the same pemissions and modification time as src
+func (s *Syncer) syncstats(dst, src string) {
 	// get file infos; return if not exist and panic if error
 	dstat, err1 := os.Stat(dst)
 	sstat, err2 := os.Stat(src)
@@ -198,13 +200,17 @@ func (s *Syncer) syncperms(dst, src string) {
 	check(err1)
 	check(err2)
 
-	// return if they are already the same
-	if dstat.Mode().Perm() == sstat.Mode().Perm() {
+	// update dst's permission bits
+	if dstat.Mode().Perm() != sstat.Mode().Perm() {
+		check(os.Chmod(dst, sstat.Mode().Perm()))
 		return
 	}
 
-	// update dst's permission bits
-	check(os.Chmod(dst, sstat.Mode().Perm()))
+	// update dst's modification time
+	if !dstat.ModTime().Equal(sstat.ModTime()) {
+		err := os.Chtimes(dst, sstat.ModTime(), sstat.ModTime())
+		check(err)
+	}
 }
 
 // equal returns true if both files are equal
