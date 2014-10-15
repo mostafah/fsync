@@ -207,9 +207,11 @@ func (s *Syncer) syncstats(dst, src string) {
 	}
 
 	// update dst's modification time
-	if !dstat.ModTime().Equal(sstat.ModTime()) {
-		err := os.Chtimes(dst, sstat.ModTime(), sstat.ModTime())
-		check(err)
+	if !s.NoTimes {
+		if !dstat.ModTime().Equal(sstat.ModTime()) {
+			err := os.Chtimes(dst, sstat.ModTime(), sstat.ModTime())
+			check(err)
+		}
 	}
 }
 
