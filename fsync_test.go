@@ -36,10 +36,9 @@ func TestSync(t *testing.T) {
 	testDirContents("dst/a", 1, t)
 	testFile("dst/a/b", []byte("file b"), t)
 	testFile("dst/c", []byte("file c"), t)
-	testPerms("dst", 0755, t)
-	testPerms("dst/a", 0755, t)
-	testPerms("dst/a/b", 0644, t)
-	testPerms("dst/c", 0644, t)
+	testPerms("dst/a", getPerms("src/a"), t)
+	testPerms("dst/a/b", getPerms("src/a/b"), t)
+	testPerms("dst/c", getPerms("src/c"), t)
 	testModTime("dst", getModTime("src"), t)
 	testModTime("dst/a", getModTime("src/a"), t)
 	testModTime("dst/a/b", getModTime("src/a/b"), t)
@@ -54,7 +53,7 @@ func TestSync(t *testing.T) {
 
 	// check results
 	testFile("dst/a/b", []byte("file b changed"), t)
-	testPerms("dst/a", 0775, t)
+	testPerms("dst/a", getPerms("src/a"), t)
 	testModTime("dst/a", getModTime("src/a"), t)
 	testModTime("dst/a/b", getModTime("src/a/b"), t)
 	testModTime("dst/c", getModTime("src/c"), t)
@@ -141,4 +140,10 @@ func getModTime(name string) time.Time {
 	info, err := os.Stat(name)
 	check(err)
 	return info.ModTime()
+}
+
+func getPerms(name string) os.FileMode {
+	info, err := os.Stat(name)
+	check(err)
+	return info.Mode().Perm()
 }
