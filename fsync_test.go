@@ -127,31 +127,29 @@ func testDirContents(name string, count int, t *testing.T) {
 }
 
 func testPerms(name string, p os.FileMode, t *testing.T) {
-	info, err := os.Stat(name)
-	check(err)
-	if info.Mode().Perm() != p {
+	p2 := getPerms(name)
+	if p2 != p {
 		t.Errorf("permissions for \"%s\" is %v, should be %v.\n",
-			name, info.Mode().Perm(), p)
+			name, p2, p)
 	}
 }
 
 func testModTime(name string, m time.Time, t *testing.T) {
-	info, err := os.Stat(name)
-	check(err)
-	if !info.ModTime().Equal(m) {
+	m2 := getModTime(name)
+	if !m2.Equal(m) {
 		t.Errorf("modification time for \"%s\" is %v, should be %v.\n",
-			name, info.ModTime(), m)
+			name, m2, m)
 	}
-}
-
-func getModTime(name string) time.Time {
-	info, err := os.Stat(name)
-	check(err)
-	return info.ModTime()
 }
 
 func getPerms(name string) os.FileMode {
 	info, err := os.Stat(name)
 	check(err)
 	return info.Mode().Perm()
+}
+
+func getModTime(name string) time.Time {
+	info, err := os.Stat(name)
+	check(err)
+	return info.ModTime()
 }
