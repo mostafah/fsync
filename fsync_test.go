@@ -21,9 +21,10 @@ func TestSync(t *testing.T) {
 	// set times in the past to make sure times are synced, not accidentally
 	// the same
 	tt := time.Now().Add(-1 * time.Hour)
-	check(os.Chtimes("src/a", tt, tt))
 	check(os.Chtimes("src/a/b", tt, tt))
+	check(os.Chtimes("src/a", tt, tt))
 	check(os.Chtimes("src/c", tt, tt))
+	check(os.Chtimes("src", tt, tt))
 
 	// create Syncer
 	s := NewSyncer()
@@ -39,10 +40,16 @@ func TestSync(t *testing.T) {
 	testPerms("dst/a", getPerms("src/a"), t)
 	testPerms("dst/a/b", getPerms("src/a/b"), t)
 	testPerms("dst/c", getPerms("src/c"), t)
-	testModTime("dst", getModTime("src"), t)
 	testModTime("dst/a", getModTime("src/a"), t)
 	testModTime("dst/a/b", getModTime("src/a/b"), t)
 	testModTime("dst/c", getModTime("src/c"), t)
+
+	// sync the parent directory too
+	check(s.Sync("dst", "src"))
+
+	// check the results
+	testPerms("dst", getPerms("src"), t)
+	testModTime("dst", getModTime("src"), t)
 
 	// modify src
 	check(ioutil.WriteFile("src/a/b", []byte("file b changed"), 0644))
@@ -54,6 +61,7 @@ func TestSync(t *testing.T) {
 	// check results
 	testFile("dst/a/b", []byte("file b changed"), t)
 	testPerms("dst/a", getPerms("src/a"), t)
+	testModTime("dst", getModTime("src"), t)
 	testModTime("dst/a", getModTime("src/a"), t)
 	testModTime("dst/a/b", getModTime("src/a/b"), t)
 	testModTime("dst/c", getModTime("src/c"), t)
