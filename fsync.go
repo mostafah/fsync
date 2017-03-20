@@ -189,10 +189,7 @@ func (s *Syncer) sync(dst, src string) {
 		files, err = ioutil.ReadDir(dst)
 		check(err)
 		for _, file := range files {
-			if s.DeleteFilter(file) {
-				continue
-			}
-			if !m[file.Name()] {
+			if !m[file.Name()] && !s.DeleteFilter(file) {
 				check(os.RemoveAll(filepath.Join(dst, file.Name())))
 			}
 		}

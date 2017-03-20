@@ -109,12 +109,12 @@ func TestDeleteFileFilter(t *testing.T) {
 	// create Syncer
 	s := NewSyncer()
 	s.Delete = true
+
 	s.DeleteFilter = func(f os.FileInfo) bool {
-	fmt.Println(f.Name())
-	if f.Name() == "d" {
-		return true
-	}
-	return false
+		if f.Name() == "d" {
+			return true
+		}
+		return false
 	}
 
 	//precondition; dst contains 2 files `c` and `d`
@@ -130,6 +130,39 @@ func TestDeleteFileFilter(t *testing.T) {
 	testExistence("dst/a/b", true, t)
 	testExistence("dst/c", false, t)
 	testExistence("dst/d", true, t)
+}
+
+func TestDeleteFileFilterNotSet(t *testing.T) {
+	// create test directory and chdir to it
+	dir, err := ioutil.TempDir(os.TempDir(), "fsync_test_delete_filter")
+	check(err)
+	check(os.Chdir(dir))
+
+	// create test files and directories
+	check(os.MkdirAll("src/a", 0755))
+	check(ioutil.WriteFile("src/a/b", []byte("file b"), 0644))
+
+	check(os.MkdirAll("dst", 0755))
+	check(ioutil.WriteFile("dst/c", []byte("file c"), 0644))
+	check(ioutil.WriteFile("dst/d", []byte("file c"), 0644))
+
+	// create Syncer
+	s := NewSyncer()
+	s.Delete = true
+
+	//precondition; dst contains 2 files `c` and `d`
+	testDirContents("dst", 2, t)
+	testExistence("dst/c", true, t)
+	testExistence("dst/d", true, t)
+
+	check(s.Sync("dst", "src"))
+
+	// check results; c should no longer exist
+	testDirContents("dst", 1, t)
+	testExistence("dst/a/", true, t)
+	testExistence("dst/a/b", true, t)
+	testExistence("dst/c", false, t)
+	testExistence("dst/d", false, t)
 }
 
 func testFile(name string, b []byte, t *testing.T) {
